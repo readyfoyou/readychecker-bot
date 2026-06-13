@@ -43,7 +43,7 @@ async def check_all_prod(bot: Bot):
 		user_id, old_name, db_price, db_discount, db_old_price, url = row
 
 		try:
-			#name, price, old_price, discount
+			#name, price, old_price, discount #TODO поменять названия на нормальные
 			i1, i2, i3, i4 = await get_all_data(url)
 			
 			if db_price > i2:
@@ -93,6 +93,7 @@ async def add_urls_second(message: Message, state: FSMContext):
 		await state.clear()
 		return
 	else:
+		#name, price, old_price, discount #TODO поменять названия на нормальные
 		i1, i2, i3, i4 = await get_all_data(message.text)
 		await message.answer(f'''✅ Ссылка была успешно добавлена! Вот данные про ваш текущий товар: 
 📦Название: {i1} 

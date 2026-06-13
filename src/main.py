@@ -39,9 +39,11 @@ async def main():
 	scheduler = AsyncIOScheduler()
 	scheduler.add_job(check_all_prod, "interval", minutes=30, kwargs={"bot": bot})
 	scheduler.start()
+
 	logging.info("Планировщик успешно запущен!")
 	dp.message.middleware(AddPrem())
 	dp.include_router(router)
+	
 	await init_db()
 	try:
 		await dp.start_polling(bot)
