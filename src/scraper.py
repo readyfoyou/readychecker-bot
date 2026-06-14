@@ -1,21 +1,21 @@
 import asyncio
-import aiohttp
+from curl_cffi.requests import AsyncSession
 
 async def fetch_data(url):
-		
-	headers = {
-		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-	}
 	cookies = {
 		"wants_mature_content": "1",
 		"birthtime": "946684801" # 01.01.2000
 	}
-	async with aiohttp.ClientSession(headers=headers, cookies=cookies) as session:
-		
-		async with session.get(url) as response:
+	async with AsyncSession() as session:
+		try:
 			
-			if response.status == 200:
-				return await response.text()
+			response = await session.get(url, cookies=cookies, impersonate='chrome', timeout=10)
+
+			if response.status_code == 200:
+				return response.text
 			else:
-				print("vse ploho", response.status_code)
+				print("Ошибка парсинга:", response.status_code)
 				return None
+		except Exception as e:
+			print('Ошибка при запросе')
+			return None
