@@ -1,12 +1,16 @@
 import asyncio
+import random
 from curl_cffi.requests import AsyncSession
+from playwright.async_api import async_playwright
+from playwright_stealth import Stealth
 
-async def fetch_data(url):
+async def fetch_data(url, retries=3):
+    
     cookies = {
         "wants_mature_content": "1",
         "birthtime": "946684801" # 01.01.2000
     }
-    
+        
     headers = {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -34,7 +38,7 @@ async def fetch_data(url):
             )
             if response.status_code == 200:
                 if "Pardon Our Interruption" in response.text:
-                    print("Ой-ой, сайт(возможно комфи) выдал страницу блокировки (капчу)!")
+                    print("Ой-ой, сайт выдал страницу блокировки (капчу)!")
                     return None
                 return response.text
             else:

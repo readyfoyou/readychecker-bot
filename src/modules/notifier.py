@@ -2,6 +2,8 @@ import asyncio
 import logging
 import random
 import aiosqlite
+from dotenv import load_dotenv
+import os
 from aiogram import Router, html, F, Bot
 from aiogram.filters import CommandStart
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
@@ -9,16 +11,24 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from databases.db import get_all_data
+load_dotenv()
+
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
 router = Router() 
 
 class UrlAdd(StatesGroup):
-    ssilka = State()
-    waiting_fo_back = State()
+	ssilka = State()
+	waiting_fo_back = State()
+	waiting_fo_report = State()
+
+class AdminReply(StatesGroup):
+	waiting_for_reply = State()
 
 kb1 = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="➕ Добавить товар", callback_data='addthis')], 
-    [InlineKeyboardButton(text="🗒 Помощь", callback_data="help"), InlineKeyboardButton(text="🗂 Список товаров", callback_data="catalog")]
+    [InlineKeyboardButton(text="🗒 Помощь", callback_data="help"), InlineKeyboardButton(text="🗂 Список товаров", callback_data="catalog")],
+	[InlineKeyboardButton(text="📨 Сообщить о проблеме", callback_data="report")]
 ])
 
 kback = InlineKeyboardMarkup(inline_keyboard=[
@@ -55,19 +65,23 @@ async def check_all_prod(bot: Bot):
 🏪 Старая цена: {i3}
 👜 Предыдущая цена в боте: {db_price}₴
 
-🔗 [Перейти к товару]({url})''', parse_mode="Markdown")
+🔗 [Перейти к товару]({url})
+
+Если вы считаете что произошла ошибка(например html товара не был найдет, или бот выдает неккоректную ссылку, напишите в предложку)
+			''', parse_mode="Markdown")
 			
 			async with aiosqlite.connect("checker_db.db") as db_upd:
 				await db_upd.execute('UPDATE user_products SET current_price = ?, old_price = ?, product_name = ?, discount = ? WHERE user_id = ? AND ssilka = ?',
 					(i2, i3, i1, i4, user_id, url)
 				)
 				await db_upd.commit()
+			await asyncio.sleep(1.5)
 		except Exception as e:
 			logging.error(f"Ошибка при автоматической проверке товара {url} для пользователя {user_id}: {e}")
 @router.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
     await message.answer(
-        f"Привет, {message.from_user.full_name}! С помощью этого бота ты сможешь отслеживать скидки, и текущую стоимость выбранных товаров. На данный момент присутствует поддержка таких сервисов: Eva, Steam, ATB, Comfy, Rozetka. Приятного пользования!", 
+        f"Привет, {message.from_user.full_name}! С помощью этого бота ты сможешь отслеживать скидки, и текущую стоимость выбранных товаров. На данный момент присутствует поддержка таких сервисов: Eva, Steam, ATB, Silpo, Rozetka. Приятного пользования!", 
         reply_markup=kb1
     )
 
@@ -117,7 +131,7 @@ async def add_urls_invalid(message: Message):
 async def go_back(callback: CallbackQuery):
     await callback.answer()
     await callback.message.edit_text(
-        text=f"Привет, {callback.from_user.full_name}! С помощью этого бота ты сможешь отслеживать скидки, и текущую стоимость выбранных товаров. На данный момент присутствует поддержка таких сервисов: Eva, Steam, ATB, Comfy, Rozetka.Приятного пользования!",
+        text=f"Привет, {callback.from_user.full_name}! С помощью этого бота ты сможешь отслеживать скидки, и текущую стоимость выбранных товаров. На данный момент присутствует поддержка таких сервисов: Eva, Steam, ATB, Silpo, Rozetka.Приятного пользования!",
         reply_markup=kb1
     ) 
     
@@ -189,7 +203,76 @@ async def delete_product(callback: CallbackQuery):
 @router.callback_query(F.data == 'help')
 async def helping_msg(callback: CallbackQuery):
     await callback.answer()
-    await callback.message.edit_text('Этот бот умеет отслеживать скидки на выбранные вами товары. Для того чтобы начать им пользоваться, нажмите кнопку "Добавить товар", после чего выполните инструкции бота. Вы можете выбрать время, когда вам будут приходить уведомления. Приятного пользования!', reply_markup=kback)
+    await callback.message.edit_text('Этот бот умеет отслеживать скидки на выбранные вами товары. Для того чтобы начать им пользоваться, нажмите кнопку "Добавить товар", после чего выполните инструкции бота. Приятного пользования!', reply_markup=kback)
+
+@router.callback_query(F.data == 'report')
+async def report(callback: CallbackQuery, state: FSMContext):
+	await state.set_state(UrlAdd.waiting_fo_report)
+	await callback.answer()
+	await callback.message.edit_text("Пожалуйста, опишите проблему, с которой вы столкнулись. Мы постараемся помочь вам как можно скорее.", reply_markup=kback)
+
+@router.message(UrlAdd.waiting_fo_report)
+async def handle_report(message: Message, state: FSMContext, bot: Bot):
+	await state.clear()
+	user_id = message.from_user.id
+	user_username = message.from_user.username
+	report_text = message.text
+
+	kb_report = InlineKeyboardMarkup(inline_keyboard=[
+		[InlineKeyboardButton(text="💬 Ответить пользователю",callback_data=f"reply_{user_id}")]
+	])
+
+	await bot.send_message(
+		chat_id=ADMIN_ID, 
+		text=f"📬 <b>Новое обращение</b>\n\n"
+            f"👤 От: {user_username}"
+            f"🆔 User ID: <code>{user_id}</code>\n\n"
+            f"💬 <b>Сообщение:</b>\n{message.text}",
+		parse_mode="HTML",
+		reply_markup=kb_report
+	)
+
+	logging.info(f"Пользователь {user_id} отправил отчет: {report_text}")
+	
+	await message.answer("Спасибо за ваш отчет! Мы рассмотрим вашу проблему и постараемся помочь вам как можно скорее.", reply_markup=kback)
+	await state.clear()
+
+@router.callback_query(F.data.startswith('reply_'))
+async def reply_to_user(callback: CallbackQuery, state: FSMContext):
+	if callback.from_user.id != ADMIN_ID: 
+		await callback.answer("У вас нет прав для ответа на это сообщение.", show_alert=True)
+		return
+	
+	target_user_id = int(callback.data.split("_")[1])
+	await state.update_data(target_user_id=target_user_id)
+	await state.set_state(AdminReply.waiting_for_reply)
+ 
+	await callback.answer()
+	await callback.message.answer(
+    	f"✍️ Введи ответ для пользователя <code>{target_user_id}</code>:",
+    	parse_mode="HTML"
+    )
+
+@router.message(AdminReply.waiting_for_reply)
+async def send_reply_to_user(message: Message, state: FSMContext, bot: Bot):
+	if message.from_user.id != ADMIN_ID:
+		await message.answer("У вас нет прав для отправки этого сообщения.")
+		return
+	
+	data = await state.get_data()
+	target_user_id = data.get("target_user_id")
+	await state.clear()
+
+	try:
+		await bot.send_message(
+			chat_id=target_user_id,
+			text=f"💬 <b>Ответ от администрации:</b>\n\n{message.text}",
+			parse_mode="HTML"
+		)
+		await message.answer(f"✅ Ответ успешно отправлен пользователю <code>{target_user_id}</code>.", parse_mode="HTML")
+	except Exception as e:
+		logging.error(f"Ошибка при отправке ответа пользователю {target_user_id}: {e}")
+		await message.answer(f"❌ Не удалось отправить сообщение пользователю <code>{target_user_id}</code>. Возможно, пользователь заблокировал бота или произошла другая ошибка.", parse_mode="HTML")
 
 ''' кнопка 'Проверить сейчас' удалена по причине поломки логики бота'''
 # @router.callback_query(F.data == 'check_now')    
@@ -243,7 +326,7 @@ async def helping_msg(callback: CallbackQuery):
 # 				logging.error(f"Ошибка при удалении сообщений: {e}")
 		
 # 		await callback.message.answer(
-# 			text=f"Привет, {callback.from_user.full_name}! С помощью этого бота ты сможешь отслеживать скидки, и текущую стоимость выбранных товаров. На данный момент присутствует поддержка таких сервисов: Eva, Steam, ATB, Comfy, Rozetka. Приятного пользования!",
+# 			text=f"Привет, {callback.from_user.full_name}! С помощью этого бота ты сможешь отслеживать скидки, и текущую стоимость выбранных товаров. На данный момент присутствует поддержка таких сервисов: Eva, Steam, ATB, Silpo, Rozetka. Приятного пользования!",
 # 			reply_markup=kb1
 # 		)
 		

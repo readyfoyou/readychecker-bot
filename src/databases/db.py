@@ -1,15 +1,15 @@
 import logging
 from scraper import fetch_data
-from parser.AtbParser import AtbParser
+from parser.FoodParser import AtbParser, SilpoParser
 from parser.EvaParser import EvaParser
 from parser.SteamParser import SteamParser
-from parser.TechParser import RozetkaParser, ComfyParser
+from parser.TechParser import RozetkaParser
 PARSERS_URL = {
 	'eva.ua': EvaParser,	
 	'steampowered.com': SteamParser,
 	'rozetka.com': RozetkaParser,
 	'atbmarket.com': AtbParser,
-	'comfy.ua': ComfyParser
+	'silpo.ua': SilpoParser
 }
 async def get_all_data(url):
 	data = await fetch_data(url)
